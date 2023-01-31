@@ -4,7 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "TestMovementCharacter.h"
+
+
 #include "MyCharacterMovementComponent.generated.h"
+
+
+UENUM(BlueprintType)
+enum ECustomMovementMode
+{
+	CMOVE_None			UMETA(Hidden),
+	CMOVE_Slide			UMETA(DisplayName = "Slide"),
+	CMOVE_MAX			UMETA(Hidden),
+};
 
 /**
  * 
@@ -42,12 +54,25 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
 	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
 
+	UPROPERTY(EditDefaultsOnly) float MinSlideSpeed = 400.f;
+	UPROPERTY(EditDefaultsOnly) float MaxSlideSpeed = 400.f;
+	UPROPERTY(EditDefaultsOnly) float SlideEnterImpulse = 400.f;
+	UPROPERTY(EditDefaultsOnly) float SlideGravityForce = 4000.f;
+	UPROPERTY(EditDefaultsOnly) float SlideFrictionFactor = .06f;
+	UPROPERTY(EditDefaultsOnly) float BrakingDecelerationSliding = 1000.f;
+
+	UPROPERTY(Transient) ATestMovementCharacter* TestMovmentCharacterOwner;
+
 	//safe variable can be called from unfase function on client, not on server
 	//unsafe variable can not be used in safe function
 	bool Safe_bWantsToSprint;
 
 public:
 	UMyCharacterMovementComponent();
+
+protected:
+	virtual void InitializeComponent() override;
+
 public:
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 protected:
@@ -57,8 +82,19 @@ protected:
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 
 
+private:
+	void EnterSlide(EMovementMode PrevMode, ECustomMovementMode PrevCustomMode);
+	void ExitSlide();
+	bool CanSlide() const;
+	//important function that defines movementmode
+	void PhysSlide(float deltaTime, int32 Iterations);
+
 public:
 	UFUNCTION(BlueprintCallable) void SprintPressed();
 	UFUNCTION(BlueprintCallable) void SprintReleased();
+
+	UFUNCTION(BlueprintCallable) void CrouchPressed();
+
+	UFUNCTION(BlueprintPure) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 	
 };
