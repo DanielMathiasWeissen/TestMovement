@@ -9,13 +9,18 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "MyCharacterMovementComponent.h"
 
 
 //////////////////////////////////////////////////////////////////////////
 // ATestMovementCharacter
 
-ATestMovementCharacter::ATestMovementCharacter()
+ATestMovementCharacter::ATestMovementCharacter(const FObjectInitializer& ObjectInitializer) :
+Super(ObjectInitializer.SetDefaultSubobjectClass<UMyCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
+
+	MyCharacterMovementComponent = Cast<UMyCharacterMovementComponent>(GetCharacterMovement());
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
