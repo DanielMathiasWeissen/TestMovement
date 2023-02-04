@@ -96,5 +96,7 @@ public:
 	UFUNCTION(BlueprintCallable) void CrouchPressed();
 
 	UFUNCTION(BlueprintPure) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
+
+	void ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer) override;
 	
 };

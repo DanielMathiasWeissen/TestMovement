@@ -3,6 +3,7 @@
 
 #include "MyCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/ScopedMovementUpdate.h"
 
 #include "GameFramework/Character.h"
 
@@ -369,6 +370,52 @@ void UMyCharacterMovementComponent::PhysSlide(float deltaTime, int32 Iterations)
 UFUNCTION(BlueprintPure) bool UMyCharacterMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
 {
 	return MovementMode == MOVE_Custom && CustomMovementMode == InCustomMovementMode;
+}
+void UMyCharacterMovementComponent::ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer)
+{
+	// Optional "old move"
+	if (MoveDataContainer.bHasOldMove)
+	{
+		if (FCharacterNetworkMoveData* OldMove = MoveDataContainer.GetOldMoveData())
+		{
+			SetCurrentNetworkMoveData(OldMove);
+			ServerMove_PerformMovement(*OldMove);
+		}
+	}
+
+	// Optional scoped movement update for dual moves to combine moves for cheaper performance on the server.
+	const bool bMoveAllowsScopedDualMove = MoveDataContainer.bHasPendingMove && !MoveDataContainer.bDisableCombinedScopedMove;
+	FScopedMovementUpdate ScopedMovementUpdate(UpdatedComponent, (bMoveAllowsScopedDualMove && bEnableServerDualMoveScopedMovementUpdates && bEnableScopedMovementUpdates) ? EScopedUpdate::DeferredUpdates : EScopedUpdate::ImmediateUpdates);
+
+	// Optional pending move as part of "dual move"
+	if (MoveDataContainer.bHasPendingMove)
+	{
+		if (FCharacterNetworkMoveData* PendingMove = MoveDataContainer.GetPendingMoveData())
+		{
+			CharacterOwner->bServerMoveIgnoreRootMotion = MoveDataContainer.bIsDualHybridRootMotionMove && CharacterOwner->IsPlayingNetworkedRootMotionMontage();
+			SetCurrentNetworkMoveData(PendingMove);
+			ServerMove_PerformMovement(*PendingMove);
+			CharacterOwner->bServerMoveIgnoreRootMotion = false;
+		}
+	}
+
+	// Final standard move
+	if (FCharacterNetworkMoveData* NewMove = MoveDataContainer.GetNewMoveData())
+	{
+		FVector_NetQuantize Accel = NewMove->Acceleration;
+		FRotator Control = NewMove->ControlRotation;
+		NewMove->
+
+		if (GEngine) {
+			GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Accel.x = %f, Accel.y = %f, Accel.z = %f"), Accel.X, Accel.Y, Accel.Z));
+			GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Control.Pitch = %f, Control.Yaw = %f, Control.Roll = %f"), Control.Pitch, Control.Yaw, Control.Roll));
+		}
+
+		SetCurrentNetworkMoveData(NewMove);
+		ServerMove_PerformMovement(*NewMove);
+	}
+
+	SetCurrentNetworkMoveData(nullptr);
 }
 #pragma endregion
 
