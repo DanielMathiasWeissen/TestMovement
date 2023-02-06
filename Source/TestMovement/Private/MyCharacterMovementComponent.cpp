@@ -8,7 +8,6 @@
 #include "GameFramework/Character.h"
 
 
-
 #pragma region Saved Move
 
 //combine moves if they are identical -> optimization
@@ -62,6 +61,13 @@ void UMyCharacterMovementComponent::FSavedMove_MyCharacter::PrepMoveFor(ACharact
 	CharacterMovement->Safe_bWantsToSprint = Saved_bWantsToSprint;
 }
 
+void UMyCharacterMovementComponent::FSavedMove_MyCharacter::PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode)
+{
+	Super::PostUpdate(C, PostUpdateMode);
+
+	//SavedControlRotation = C->GetActorRotation();
+}
+
 #pragma endregion
 
 #pragma region Client Network Prediction Data
@@ -111,6 +117,8 @@ void UMyCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 UMyCharacterMovementComponent::UMyCharacterMovementComponent()
 {
 	NavAgentProps.bCanCrouch = true;
+
+	SetNetworkMoveDataContainer(MyDefaultNetworkMoveDataContainer);
 }
 
 void UMyCharacterMovementComponent::InitializeComponent()
@@ -367,10 +375,134 @@ void UMyCharacterMovementComponent::PhysSlide(float deltaTime, int32 Iterations)
 	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
 }
 
-UFUNCTION(BlueprintPure) bool UMyCharacterMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
+bool UMyCharacterMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
 {
 	return MovementMode == MOVE_Custom && CustomMovementMode == InCustomMovementMode;
 }
+
+#pragma endregion
+
+
+#pragma region Input
+
+void UMyCharacterMovementComponent::SprintPressed()
+{
+	Safe_bWantsToSprint = true;
+}
+
+void UMyCharacterMovementComponent::SprintReleased()
+{
+	Safe_bWantsToSprint = false;
+}
+
+void UMyCharacterMovementComponent::CrouchPressed()
+{
+	bWantsToCrouch = ~bWantsToCrouch;
+}
+#pragma endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+//this is a dangerous mess, do not use
+void UMyCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData)
+{
+//	SCOPE_CYCLE_COUNTER(STAT_CharacterMovementServerMove);
+//	CSV_SCOPED_TIMING_STAT(CharacterMovement, CharacterMovementServerMove);
+
+	if (!HasValidData() || !IsActive())
+	{
+		return;
+	}
+
+	const float ClientTimeStamp = MoveData.TimeStamp;
+	FVector_NetQuantize10 ClientAccel = MoveData.Acceleration;
+	const uint8 ClientMoveFlags = MoveData.CompressedMoveFlags;
+	const FRotator ClientControlRotation = MoveData.ControlRotation;
+
+	FNetworkPredictionData_Server_Character* ServerData = GetPredictionData_Server_Character();
+	check(ServerData);
+
+	if (!VerifyClientTimeStamp(ClientTimeStamp, *ServerData))
+	{
+		const float ServerTimeStamp = ServerData->CurrentClientTimeStamp;
+		// This is more severe if the timestamp has a large discrepancy and hasn't been recently reset.
+		if (ServerTimeStamp > 1.0f && FMath::Abs(ServerTimeStamp - ClientTimeStamp) > 1.0f)
+		{
+			UE_LOG(LogNetPlayerMovement, Warning, TEXT("ServerMove: TimeStamp expired: %f, CurrentTimeStamp: %f, Character: %s"), ClientTimeStamp, ServerTimeStamp, *GetNameSafe(CharacterOwner));
+		}
+		else
+		{
+			UE_LOG(LogNetPlayerMovement, Log, TEXT("ServerMove: TimeStamp expired: %f, CurrentTimeStamp: %f, Character: %s"), ClientTimeStamp, ServerTimeStamp, *GetNameSafe(CharacterOwner));
+		}
+		return;
+	}
+
+	bool bServerReadyForClient = true;
+	APlayerController* PC = Cast<APlayerController>(CharacterOwner->GetController());
+	if (PC)
+	{
+		bServerReadyForClient = PC->NotifyServerReceivedClientData(CharacterOwner, ClientTimeStamp);
+		if (!bServerReadyForClient)
+		{
+			ClientAccel = FVector::ZeroVector;
+		}
+	}
+
+	const UWorld* MyWorld = GetWorld();
+	const float DeltaTime = ServerData->GetServerMoveDeltaTime(ClientTimeStamp, CharacterOwner->GetActorTimeDilation(*MyWorld));
+
+	if (DeltaTime > 0.f)
+	{
+		ServerData->CurrentClientTimeStamp = ClientTimeStamp;
+		ServerData->ServerAccumulatedClientTimeStamp += DeltaTime;
+		ServerData->ServerTimeStamp = MyWorld->GetTimeSeconds();
+		ServerData->ServerTimeStampLastServerMove = ServerData->ServerTimeStamp;
+
+		if (AController* CharacterController = Cast<AController>(CharacterOwner->GetController()))
+		{
+		//	CharacterOwner->SetActorRotation(ClientControlRotation);
+			CharacterController->SetControlRotation(ClientControlRotation);
+		}
+
+		if (!bServerReadyForClient)
+		{
+			return;
+		}
+
+		// Perform actual movement
+		if ((MyWorld->GetWorldSettings()->GetPauserPlayerState() == NULL))
+		{
+			if (PC)
+			{
+				PC->UpdateRotation(DeltaTime);
+			}
+
+			MoveAutonomous(ClientTimeStamp, DeltaTime, ClientMoveFlags, ClientAccel);
+		}
+
+		UE_CLOG(CharacterOwner && UpdatedComponent, LogNetPlayerMovement, VeryVerbose, TEXT("ServerMove Time %f Acceleration %s Velocity %s Position %s Rotation %s DeltaTime %f Mode %s MovementBase %s.%s (Dynamic:%d)"),
+			ClientTimeStamp, *ClientAccel.ToString(), *Velocity.ToString(), *UpdatedComponent->GetComponentLocation().ToString(), *UpdatedComponent->GetComponentRotation().ToCompactString(), DeltaTime, *GetMovementName(),
+			*GetNameSafe(GetMovementBase()), *CharacterOwner->GetBasedMovement().BoneName.ToString(), MovementBaseUtility::IsDynamicBase(GetMovementBase()) ? 1 : 0);
+	}
+
+	// Validate move only after old and first dual portion, after all moves are completed.
+	if (MoveData.NetworkMoveType == FCharacterNetworkMoveData::ENetworkMoveType::NewMove)
+	{
+		ServerMoveHandleClientError(ClientTimeStamp, DeltaTime, ClientAccel, MoveData.Location, MoveData.MovementBase, MoveData.MovementBaseBoneName, MoveData.MovementMode);
+	}
+}
+
 void UMyCharacterMovementComponent::ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer)
 {
 	// Optional "old move"
@@ -404,12 +536,11 @@ void UMyCharacterMovementComponent::ServerMove_HandleMoveData(const FCharacterNe
 	{
 		FVector_NetQuantize Accel = NewMove->Acceleration;
 		FRotator Control = NewMove->ControlRotation;
-		NewMove->
 
-		if (GEngine) {
-			GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Accel.x = %f, Accel.y = %f, Accel.z = %f"), Accel.X, Accel.Y, Accel.Z));
-			GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Control.Pitch = %f, Control.Yaw = %f, Control.Roll = %f"), Control.Pitch, Control.Yaw, Control.Roll));
-		}
+			if (GEngine) {
+				GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Accel.x = %f, Accel.y = %f, Accel.z = %f"), Accel.X, Accel.Y, Accel.Z));
+				GEngine->AddOnScreenDebugMessage(-1, .01f, FColor::Red, FString::Printf(TEXT("Control.Pitch = %f, Control.Yaw = %f, Control.Roll = %f"), Control.Pitch, Control.Yaw, Control.Roll));
+			}
 
 		SetCurrentNetworkMoveData(NewMove);
 		ServerMove_PerformMovement(*NewMove);
@@ -417,23 +548,4 @@ void UMyCharacterMovementComponent::ServerMove_HandleMoveData(const FCharacterNe
 
 	SetCurrentNetworkMoveData(nullptr);
 }
-#pragma endregion
-
-
-#pragma region Input
-
-void UMyCharacterMovementComponent::SprintPressed()
-{
-	Safe_bWantsToSprint = true;
-}
-
-void UMyCharacterMovementComponent::SprintReleased()
-{
-	Safe_bWantsToSprint = false;
-}
-
-void UMyCharacterMovementComponent::CrouchPressed()
-{
-	bWantsToCrouch = ~bWantsToCrouch;
-}
-#pragma endregion
+*/

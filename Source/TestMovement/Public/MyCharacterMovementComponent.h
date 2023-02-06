@@ -5,10 +5,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TestMovementCharacter.h"
-
+#include "MyCharacterMovementReplication.h"
 
 #include "MyCharacterMovementComponent.generated.h"
-
 
 UENUM(BlueprintType)
 enum ECustomMovementMode
@@ -18,14 +17,10 @@ enum ECustomMovementMode
 	CMOVE_MAX			UMETA(Hidden),
 };
 
-/**
- * 
- */
 UCLASS()
 class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovementComponent
 {
 	GENERATED_BODY()
-
 
 	class FSavedMove_MyCharacter : public FSavedMove_Character
 	{
@@ -39,6 +34,7 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 		virtual uint8 GetCompressedFlags() const override;
 		virtual void SetMoveFor(ACharacter* C, float InDeltaTime, FVector const& NewAccel, FNetworkPredictionData_Client_Character& ClientData) override;
 		virtual void PrepMoveFor(ACharacter* C) override;
+		virtual void PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode) override; 
 	};
 
 	class FNetworkPredictionData_Client_MyCharacter : public FNetworkPredictionData_Client_Character
@@ -50,7 +46,7 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 
 		virtual FSavedMovePtr AllocateNewMove() override;
 	};
-
+	
 	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
 	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
 
@@ -67,6 +63,9 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 	//unsafe variable can not be used in safe function
 	bool Safe_bWantsToSprint;
 
+private:
+	FMyFCharacterNetworkMoveDataContainer MyDefaultNetworkMoveDataContainer;
+
 public:
 	UMyCharacterMovementComponent();
 
@@ -74,6 +73,7 @@ protected:
 	virtual void InitializeComponent() override;
 
 public:
+
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 protected:
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
@@ -97,6 +97,12 @@ public:
 
 	UFUNCTION(BlueprintPure) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 
-	void ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer) override;
+	//void ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer) override;
+
+	//virtual void CallServerMovePacked(const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove) override;
+
+	//virtual void ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData) override;
+
+	//void ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer) override;
 	
 };
