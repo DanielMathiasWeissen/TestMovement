@@ -30,7 +30,7 @@ struct FMyFCharacterNetworkMoveDataContainer : public FCharacterNetworkMoveDataC
 	}
 
 
-//	virtual void ClientFillNetworkMoveData(const FSavedMove_Character* ClientNewMove, const FSavedMove_Character* ClientPendingMove, const FSavedMove_Character* ClientOldMove);
+	//virtual void ClientFillNetworkMoveData(const FSavedMove_Character* ClientNewMove, const FSavedMove_Character* ClientPendingMove, const FSavedMove_Character* ClientOldMove);
 
 private:
 

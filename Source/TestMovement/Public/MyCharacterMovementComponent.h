@@ -29,6 +29,9 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 
 		uint8 Saved_bWantsToSprint : 1;
 
+		//this is not sent to server, but we use this to save prev moves and replay in case of client reset
+		uint8 Saved_bPrevWantsToCrouch : 1;
+
 		virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter, float MaxDelta) const override;
 		virtual void Clear() override;
 		virtual uint8 GetCompressedFlags() const override;
@@ -50,18 +53,17 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
 	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
 
-	UPROPERTY(EditDefaultsOnly) float MinSlideSpeed = 400.f;
-	UPROPERTY(EditDefaultsOnly) float MaxSlideSpeed = 400.f;
-	UPROPERTY(EditDefaultsOnly) float SlideEnterImpulse = 400.f;
-	UPROPERTY(EditDefaultsOnly) float SlideGravityForce = 4000.f;
-	UPROPERTY(EditDefaultsOnly) float SlideFrictionFactor = .06f;
-	UPROPERTY(EditDefaultsOnly) float BrakingDecelerationSliding = 1000.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_MinSpeed = 400;
+	UPROPERTY(EditDefaultsOnly) float Slide_EnterImpulse = 400;
+	UPROPERTY(EditDefaultsOnly) float Slide_GravityForce = 200;
+	UPROPERTY(EditDefaultsOnly) float Slide_Friction = .1;
 
 	UPROPERTY(Transient) ATestMovementCharacter* TestMovmentCharacterOwner;
 
 	//safe variable can be called from unfase function on client, not on server
 	//unsafe variable can not be used in safe function
 	bool Safe_bWantsToSprint;
+	bool Safe_bPrevWantsToCrouch;
 
 private:
 	FMyFCharacterNetworkMoveDataContainer MyDefaultNetworkMoveDataContainer;
@@ -75,17 +77,24 @@ protected:
 public:
 
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
+
+	virtual bool IsMovingOnGround() const override;
+	virtual bool CanCrouchInCurrentState() const override;
 protected:
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 
 	//called at end of every perform move, allows us to write movement logic regardless of movement mode
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 
+	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
+
+	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
+
 
 private:
-	void EnterSlide(EMovementMode PrevMode, ECustomMovementMode PrevCustomMode);
+	void EnterSlide();
 	void ExitSlide();
-	bool CanSlide() const;
+	bool GetSlideSurface(FHitResult& Hit) const;
 	//important function that defines movementmode
 	void PhysSlide(float deltaTime, int32 Iterations);
 
