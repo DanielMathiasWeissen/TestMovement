@@ -180,7 +180,6 @@ bool UMyCharacterMovementComponent::CanCrouchInCurrentState() const
 void UMyCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterations)
 {
 	Super::PhysCustom(deltaTime, Iterations);
-	Super::PhysCustom(deltaTime, Iterations);
 
 	switch (CustomMovementMode)
 	{

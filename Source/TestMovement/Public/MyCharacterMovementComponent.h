@@ -53,10 +53,10 @@ class TESTMOVEMENT_API UMyCharacterMovementComponent : public UCharacterMovement
 	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
 	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
 
-	UPROPERTY(EditDefaultsOnly) float Slide_MinSpeed = 400;
-	UPROPERTY(EditDefaultsOnly) float Slide_EnterImpulse = 400;
-	UPROPERTY(EditDefaultsOnly) float Slide_GravityForce = 200;
-	UPROPERTY(EditDefaultsOnly) float Slide_Friction = .1;
+	UPROPERTY(EditDefaultsOnly) float Slide_MinSpeed = 150.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_EnterImpulse = 500.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_GravityForce = 5000.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_Friction = 1.3f;
 
 	UPROPERTY(Transient) ATestMovementCharacter* TestMovmentCharacterOwner;
 
